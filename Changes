@@ -1,0 +1,10 @@
+Revision history for Catalyst-View-Template-PHP
+
+0.02    2012-07-23
+        Convert Catalyst's $c->req->uploads to PHP's $_FILES.
+        Respect more PHP system settings.
+
+0.01    2012-05-16
+	Includes Catalyst::View::TemplatePHP and 
+	Catalyst::Helper::View::TemplatePHP packages.
+
