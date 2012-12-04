@@ -1,5 +1,5 @@
 ---
-abstract: 'Use PHP as a Catalyst templating system'
+abstract: 'Use PHP as a templating system within Catalyst'
 author:
   - "Marty O'Brien, C<< <mob at cpan.org> >>"
   - "Marty O'Brien <mob@cpan.org>"
@@ -25,14 +25,13 @@ meta-spec:
 name: Catalyst-View-Template-PHP
 no_index:
   directory:
-    - example
     - inc
     - t
 requires:
   Catalyst::View: 0
   Moose: 0
   PHP: 0.14
-  perl: 5.14.0
+  perl: 5.12.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.02
+version: 0.03

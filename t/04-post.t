@@ -189,6 +189,38 @@ $DB::single = 1;
 	$content =~ /_REQUEST = .*foo.*array.*t.*u.*_SERVER/s &&
 	$content =~ /_REQUEST = .*foo.*array.*v.*w.*_SERVER/s,
 	'$_REQUEST contains array "foo"' );
+
+
+    # added for v0.03 - parameter name with [] form a simple array
+    $response = request POST 'http://localhost/vars.php?get=14&foo=77', [
+	'foo[]' => '567',
+	'post' => 36,
+	'foo[]' => '789',
+	'foo[]' => '678',
+    ];
+    ok( $response, 'response post+get ok' );
+    $content = eval { $response->content };
+
+    ok( $content =~ /_GET = array.*get.*14.*_POST/s, '$_GET contains "get"' );
+    ok( $content =~ /_REQUEST = array.*get.*14.*_SERVER/s,
+	'$_REQUEST contains "get" from $_GET' );
+    ok( $content =~ /_GET = array.*foo.*77.*_POST/s, '$_GET contains "foo"' );
+    ok( $content !~ /_REQUEST = array.*foo.*77.*_SERVER/s, 
+	'$_REQUEST doesn\'t contain "foo" from $_GET' );
+
+    ok( $content =~ /_POST = array.*post.*36.*_REQUEST/s,
+	'$_POST contains "post"' );
+    ok( $content =~ /_POST = .*foo.*array.*0.*567.*_REQUEST/s &&
+	$content =~ /_POST = .*foo.*array.*1.*789.*_REQUEST/s &&
+	$content =~ /_POST = .*foo.*array.*2.*678.*_REQUEST/s,
+	'$_POST contains array "foo"' );
+    ok( $content =~ /_REQUEST = array.*post.*36.*_SERVER/s,
+	'$_REQUEST contains "post"' );
+    ok( $content =~ /_REQUEST = .*foo.*array.*0.*567.*_SERVER/s &&
+	$content =~ /_REQUEST = .*foo.*array.*2.*678.*_SERVER/s &&
+	$content =~ /_REQUEST = .*foo.*array.*1.*789.*_SERVER/s,
+	'$_REQUEST contains array "foo"' );
+
 }
 
 done_testing();

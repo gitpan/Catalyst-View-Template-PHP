@@ -1,6 +1,6 @@
 package Catalyst::View::Template::PHP;
 
-use 5.014;
+use 5.012;
 use strict;
 use warnings;
 use Moose;
@@ -10,7 +10,7 @@ use Scalar::Util 'reftype';
 
 extends 'Catalyst::View';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 our $PROCESSED = 0;
 
 sub new {
@@ -223,12 +223,13 @@ sub _php_method_params {
     #
     # 1. foo=first&foo=second&foo=lats
     #
-    #    In Perl, value for the parameter 'foo' is an array reference with 3 values
-    #    In PHP, value for the parameter 'foo' is 'last', whatever the last value was
+    #    In Perl, value for the parameter 'foo' is an array ref with 3 values
+    #    In PHP, value for param 'foo' is 'last', whatever the last value was
+    #    See also example #5
     #
     # 2. foo[bar]=value1&foo[baz]=value2
     #
-    #    In Perl, this creates parameters 'foo[bar]' and 'foo[baz]'
+    #    In Perl, this creates scalar parameters 'foo[bar]' and 'foo[baz]'
     #    In PHP, this creates the parameter 'foo' with an associative array
     #            value ('bar'=>'value1', 'baz'=>'value2')
     #
@@ -244,6 +245,10 @@ sub _php_method_params {
     #    In Perl, this creates parameters 'foo[2][bar]' and 'foo[2][baz]'
     #    In PHP, this creates a 2-level hash 'foo'
     #
+    # 5. foo[]=123&foo[]=234&foo[]=345
+    #    In Perl, parameter 'foo[]' assigned to array ref [123,234,345]
+    #    In PHP, parameter 'foo' is an array with elem (123,234,345)
+    #
     # For a given set of Perl-parsed parameter input, this function returns
     # a hashref that resembles what the same parameters would look like
     # to PHP.
@@ -251,11 +256,11 @@ sub _php_method_params {
     my $new_params = {};
     foreach my $pp (@order) {
 	my $p = $pp;
-	if ($p =~ s/\[(.*)\]$//) {
+	if ($p =~ s/\[(.+)\]$//) {
 	    my $key = $1;
 	    s/%(..)/chr hex $1/ge for $p, $pp, $key;
 
-	    if (ref($new_params->{$p}) ne 'HASH') {
+	    if ($key ne '' && ref($new_params->{$p} ne 'HASH')) {
 		$new_params->{$p} = {};
 	    }
 
@@ -266,12 +271,16 @@ sub _php_method_params {
 	    } else {
 		$new_params->{$p}{$key} = $existing_params->{$pp};
 	    }
+	} elsif ($p =~ s/\[\]$//) {
+	    # expect $existing_params->{$pp} to already be an array ref
+	    $p =~ s/%(..)/chr hex $1/ge;
+	    $new_params->{$p} = $existing_params->{$pp};
 	} else {
 	    $p =~ s/%(..)/chr hex $1/ge;
 	    $new_params->{$p} = $existing_params->{$p};
-	}
-	if ('ARRAY' eq ref $new_params->{$p}) {
-	    $new_params->{$p} = $new_params->{$p}[-1];
+	    if ('ARRAY' eq ref $new_params->{$p}) {
+		$new_params->{$p} = $new_params->{$p}[-1];
+	    }
 	}
     }
     return $new_params;
@@ -287,24 +296,29 @@ sub _set_method_params {
 	if ($query) {
 	    $query =~ s/%(5[BD])/chr hex $1/gie;
 	    my @order = map { s/=.*//; $_ } split /&/, $query;
-	    $params->{_GET} = _php_method_params( $c->request->query_parameters, @order );
+	    $params->{_GET} = _php_method_params(
+		 $c->request->query_parameters, @order );
 	}
     }
     if ($var_order =~ /P/ && $c->request->method eq 'POST') {
 	my $order = eval {
 	    $c->req->body->{param_order} // []
 	} // [ keys %{$c->req->body_parameters} ];
-	$params->{_POST} = _php_method_params( $c->request->body_parameters, @$order );
+	$params->{_POST} = _php_method_params(
+		$c->request->body_parameters, @$order );
     }
 
     $params->{_REQUEST} = {};
     foreach my $reqvar (split //, uc $order) {
 	if ($reqvar eq 'C') {
-	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, %{$params->{_COOKIE}} };
+	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, 
+				    %{$params->{_COOKIE}} };
 	} elsif ($reqvar eq 'G') {
-	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, %{$params->{_GET}} };
+	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, 
+				    %{$params->{_GET}} };
 	} elsif ($reqvar eq 'P') {
-	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, %{$params->{_POST}} };
+	    $params->{_REQUEST} = { %{$params->{_REQUEST}}, 
+				    %{$params->{_POST}} };
 	}
     }
     return;
@@ -318,7 +332,9 @@ sub _process_uploads {
 	foreach my $key (keys %$uploads) {
 	    if ($key =~ s/\[\]$//) {
 		# PHP array format for multiple uploads
-		$_files->{$key}{$_} //= []  for qw(name type tmp_name size error);
+		for my $files_param (qw(name type tmp_name size error)) {
+		    $_files->{$key}{$files_param} //= [];
+		}
 		my $upload = $c->request->uploads->{$key . '[]'};
 		if (ref($upload) ne 'ARRAY') {
 		    $upload = [ $upload ];
@@ -400,11 +416,11 @@ sub finalize {
 
 =head1 NAME
 
-Catalyst::View::Template::PHP - Use PHP as a Catalyst templating system
+Catalyst::View::Template::PHP - Use PHP as a templating system within Catalyst
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =head1 SYNOPSIS
 
