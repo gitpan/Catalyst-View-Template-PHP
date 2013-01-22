@@ -41,6 +41,7 @@ t/php/globals.php
 t/php/handle_upload.php
 t/php/header_compute.php
 t/php/headers.php
+t/php/headers2.php
 t/php/hello.php
 t/php/output_upload.php
 t/php/phpinfo.php

@@ -16,8 +16,8 @@ our $last_header;
 our $postprocessor;
 
 sub header_callback {
-    my ($self, $c, $header) = @_;
-    $self->SUPER::header_callback( $c, $header );
+    my ($self, $c, $header, $replace) = @_;
+    $self->SUPER::header_callback( $c, $header, $replace );
     if ($header =~ /^X-compute:/) {
 	$self->process_compute_header($c,$header);
     } elsif ($header =~ /^X-/ || $capture_all_headers) {

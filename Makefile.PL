@@ -9,7 +9,7 @@ build_requires 'Test::More';
 
 requires 'Catalyst::View';
 requires 'Moose';
-requires 'PHP' => 0.14;
+requires 'PHP' => 0.14; # 0.15 needed for 2nd arg to options(header => ...)
 
 test_requires 'Test::More';
 test_requires 'Catalyst::Test';

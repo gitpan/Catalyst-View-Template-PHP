@@ -82,4 +82,30 @@ BEGIN {
     ok( $result6 =~ m{/PHP\.pm} , 'result #6 looks correct' );
 }
 
+if ($PHP::VERSION >= 0.15) {
+    # requires PHP 0.15
+    my $response = request 'http://localhost/php/headers2.php';
+    ok( $response, 'simple response from header2.php' );
+#   diag Dumper($response);
+
+    ok( ref($response->header("foo")) ne 'ARRAY' &&
+	$response->header("foo") eq 'baz',
+	'default header callback respects $replace=true' );
+
+    my $header_123 = $response->header("123");
+    ok( (ref($header_123) eq 'ARRAY' &&
+	 $header_123->[0] eq '456' &&
+	 $header_123->[1] eq '789') ||
+	(ref($header_123) ne 'ARRAY' &&
+	 $header_123 eq '456, 789') ,
+	'default header callback respects $replace=false' )
+	or diag Dumper($header_123);
+
+    ok( ref($response->header('abc')) ne 'ARRAY' &&
+	$response->header("abc") eq 'jkl',
+	'default header callback default $replace is true' );
+} else {
+    diag "PHP 0.15 required to test replace argument in header callback";
+}
+
 done_testing();

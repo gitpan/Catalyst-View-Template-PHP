@@ -10,7 +10,7 @@ use Scalar::Util 'reftype';
 
 extends 'Catalyst::View';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 our $PROCESSED = 0;
 
 sub new {
@@ -128,7 +128,7 @@ sub process {
     my $OUTPUT = '';
     PHP::options( stdout => sub { $OUTPUT .= $_[0] } );
     PHP::options( stderr => sub { $self->handle_warning($c, $_[0]) } );
-    PHP::options( header => sub { $self->header_callback($c, $_[0]) } );
+    PHP::options( header => sub { $self->header_callback($c, $_[0], $_[1]) } );
     $self->{_headers} = [];
     if ($DEBUG) {
 	$c->log->debug(scalar localtime . " ... processing '$template' ...");
@@ -157,7 +157,7 @@ sub process {
 
 
     # handle redirect?
-    my @redirect = grep { /^Location:\s/ } @{$self->{_headers}};
+    my @redirect = grep { /^Location:\s/ } map { $_->[0] } @{$self->{_headers}};
     if (@redirect) {
 	$c->log->debug("Redirect header(s) received: @redirect") if $DEBUG;
 	if ($self->{_status} < 300 || $self->{_status} >= 400) {
@@ -167,9 +167,14 @@ sub process {
 	$location =~ s/^\S+:\s+//;
 	if ($self->on_redirect($c, $location, $self->{_status})) {
 
-	    foreach my $header ( @{$self->{_headers}} ) {
+	    foreach my $headerref ( @{$self->{_headers}} ) {
+		my ($header, $replace) = @$headerref;
 		next if $header =~ /^Location:\s/;
-		$c->response->headers->push_header(split(/:\s+/, $header, 2));
+		if ($replace) {
+		    $c->response->headers->header(split /:\s+/, $header, 2);
+		} else {
+		    $c->response->headers->push_header(split(/:\s+/, $header, 2));
+		}
 	    }
 
 
@@ -260,7 +265,8 @@ sub _php_method_params {
 	    my $key = $1;
 	    s/%(..)/chr hex $1/ge for $p, $pp, $key;
 
-	    if ($key ne '' && ref($new_params->{$p} ne 'HASH')) {
+	    if ($key ne '' && $new_params->{$p}
+		    && ref($new_params->{$p} ne 'HASH')) {
 		$new_params->{$p} = {};
 	    }
 
@@ -375,8 +381,8 @@ sub postprocess {
 }
 
 sub header_callback {
-    my ($self, $c, $header) = @_;
-    push @{$self->{_headers}}, $header;	   
+    my ($self, $c, $header, $replace) = @_;
+    push @{$self->{_headers}}, [ $header, $replace || 0 ];	   
 }
 
 sub on_redirect {
@@ -387,7 +393,8 @@ sub on_redirect {
 sub _set_response_headers {
     my ($self, $c) = @_;
 
-    foreach my $header (@{$self->{_headers}}) {
+    foreach my $headerref (@{$self->{_headers}}) {
+	my ($header, $replace) = @$headerref;
 	my ($key, $value) = split /:\s+/, $header, 2;
 
 	next if lc $key eq 'content-length';
@@ -396,7 +403,11 @@ sub _set_response_headers {
 	} elsif (lc $key eq 'content-encoding') {
 	    $c->response->content_encoding($value);
 	} else {
-	    $c->response->headers->push_header($key => $value);
+	    if ($replace) {
+		$c->response->headers->header($key => $value);
+	    } else {
+		$c->response->headers->push_header($key => $value);
+	    }
 	}
     }
 }
@@ -420,7 +431,7 @@ Catalyst::View::Template::PHP - Use PHP as a templating system within Catalyst
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =head1 SYNOPSIS
 
@@ -615,7 +626,7 @@ method can be overridden in the subclass.
 
 =item header_callback
 
-=item $self->header_callback($c, $header_msg)
+=item $self->header_callback($c, $header_msg, $replace)
 
 Invoked whenever the PHP interpreter calls the PHP
 C<header(STRING)> function. The default behavior of
@@ -623,6 +634,11 @@ this callback is to accumulate the list of headers
 produced by PHP into the list reference C<< $self->{_headers} >>.
 Subclasses may override this behavior and handle the
 headers from PHP anyway they like.
+
+The C<$replace> argument corresponds to the second argument
+of PHP's C<header()> function, indicating whether a duplicate
+header key should replace an earlier header, or whether there
+should be multiple headers of the same type.
 
 =item on_redirect
 
@@ -716,7 +732,7 @@ Catalyst view but uses L<PHP::Interpreter> instead of L<PHP>).
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2012 Marty O'Brien.
+Copyright 2012-2013 Marty O'Brien.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
